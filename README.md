@@ -10,17 +10,17 @@ reference vectors (k-NN) and returns `fraud_score = frauds / 5`,
 | Concern | Decision |
 |---|---|
 | Vector search | **IVF** (k-means coarse quantizer, 2048 lists) — exact brute force over 3M×14 is too slow |
-| Memory | Vectors **quantized to int8** (`[-1,1] → [0,255]`): 42 MB instead of 168 MB, fits the 350 MB budget |
+| Memory | Vectors **quantized to int16** (`[-1,1] → [0,65535]`): 84 MB instead of 168 MB (float), fits the 350 MB budget. 16-bit keeps k-NN results matching exact float search on nearly all boundary cases |
 | Index build | Done **once at image-build time** (`Fraud.IndexBuilder`) and baked into the image → `/ready` in ms |
 | Responses | Only 6 distinct outputs (`frauds/5`) — pre-serialized, zero per-request JSON writing |
 | Topology | nginx round-robin → 2 .NET API replicas |
 
 Measured locally against the official `test-data.json` (54,100 labelled payloads):
-~0.4% failure rate at `nprobe=16`, well under the 15% cut.
+~0.03% failure rate at `nprobe=12` (FP=11, FN=5 over 54,100), well under the 15% cut.
 
 ## Projects
 
-- `src/Fraud.Core` — vectorization (14 dims), int8 quantizer, IVF index format, k-NN searcher.
+- `src/Fraud.Core` — vectorization (14 dims), int16 quantizer, IVF index format, k-NN searcher.
 - `src/Fraud.IndexBuilder` — reads `references.json.gz`, trains k-means, writes the compact `index.bin`.
 - `src/Fraud.Api` — minimal API exposing `GET /ready` and `POST /fraud-score`.
 - `src/Fraud.Validate` — offline accuracy/score harness against `test-data.json`.

@@ -4,8 +4,7 @@ namespace Fraud.Core;
 
 /// <summary>
 /// k-NN (k=5) fraud scoring over the quantized IVF index.
-/// One instance per request thread (holds small scratch buffers); cheap to allocate
-/// but intended to be pooled/thread-static for the hot path.
+/// Not thread-safe (holds scratch buffers); use one instance per thread.
 /// </summary>
 public sealed class Searcher
 {
@@ -14,51 +13,47 @@ public sealed class Searcher
 
     private readonly IndexData _idx;
 
-    // scratch for the k best: parallel arrays kept sorted ascending by distance
-    private readonly int[] _bestDist = new int[K];
+    private readonly long[] _bestDist = new long[K];
     private readonly int[] _bestPos = new int[K];
 
-    // scratch for centroid ranking
-    private readonly int[] _centDist;
+    private readonly long[] _centDist;
     private readonly int[] _centOrder;
 
     public Searcher(IndexData idx)
     {
         _idx = idx;
-        _centDist = new int[idx.NList];
+        _centDist = new long[idx.NList];
         _centOrder = new int[idx.NList];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    private static int SquaredDistance(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b)
+    private static long SquaredDistance(ReadOnlySpan<ushort> a, ReadOnlySpan<ushort> b)
     {
-        // 14 dimensions; int accumulation (max 14 * 255^2 ≈ 910k, no overflow).
-        int sum = 0;
+        // 14 dims of 16-bit values; long accumulation (max 14 * 65535^2 ≈ 6.0e10).
+        long sum = 0;
         for (int i = 0; i < Quantizer.Dim; i++)
         {
             int d = a[i] - b[i];
-            sum += d * d;
+            sum += (long)d * d;
         }
         return sum;
     }
 
     /// <summary>
-    /// Returns the fraud score (frauds among the 5 nearest / 5) for a quantized query.
-    /// nprobe = number of nearest clusters to scan; pass int.MaxValue for exact brute force.
+    /// Fraud score (frauds among the 5 nearest / 5) for a quantized query.
+    /// nprobe = number of nearest clusters to scan; pass int.MaxValue for brute force.
     /// </summary>
-    public float Score(ReadOnlySpan<byte> query, int nprobe)
+    public float Score(ReadOnlySpan<ushort> query, int nprobe)
     {
-        int k = 0;
-        for (int i = 0; i < K; i++) { _bestDist[i] = int.MaxValue; _bestPos[i] = -1; }
+        for (int i = 0; i < K; i++) { _bestDist[i] = long.MaxValue; _bestPos[i] = -1; }
 
         int nlist = _idx.NList;
         if (nlist <= 1 || nprobe >= nlist)
         {
-            ScanRange(query, 0, _idx.Count, ref k);
+            ScanRange(query, 0, _idx.Count);
         }
         else
         {
-            // rank centroids by distance, take nprobe nearest
             for (int c = 0; c < nlist; c++)
             {
                 _centDist[c] = SquaredDistance(query, _idx.CentroidAt(c));
@@ -69,11 +64,10 @@ public sealed class Searcher
             for (int p = 0; p < nprobe; p++)
             {
                 int c = _centOrder[p];
-                ScanRange(query, _idx.ListStart(c), _idx.ListEnd(c), ref k);
+                ScanRange(query, _idx.ListStart(c), _idx.ListEnd(c));
             }
         }
 
-        // count frauds among the (up to K) collected neighbours
         int frauds = 0;
         for (int i = 0; i < K; i++)
             if (_bestPos[i] >= 0 && _idx.IsFraud(_bestPos[i])) frauds++;
@@ -82,14 +76,13 @@ public sealed class Searcher
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    private void ScanRange(ReadOnlySpan<byte> query, int start, int end, ref int _)
+    private void ScanRange(ReadOnlySpan<ushort> query, int start, int end)
     {
         var vectors = _idx.Vectors;
         int dim = Quantizer.Dim;
         for (int i = start; i < end; i++)
         {
-            int dist = SquaredDistance(query, vectors.Slice(i * dim, dim));
-            // insert into the sorted top-K if it beats the worst
+            long dist = SquaredDistance(query, vectors.Slice(i * dim, dim));
             if (dist < _bestDist[K - 1])
             {
                 int j = K - 1;
@@ -105,7 +98,6 @@ public sealed class Searcher
         }
     }
 
-    // selection of the nprobe nearest centroids into the front of _centOrder
     private void PartialSortCentroids(int nprobe)
     {
         int n = _idx.NList;

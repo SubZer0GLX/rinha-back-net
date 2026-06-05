@@ -50,21 +50,21 @@ Console.WriteLine($"[{sw.Elapsed}] loaded {n:N0} test payloads");
 
 // precompute quantized queries once; cross-check FastVectorizer vs Vectorizer
 var fast = new FastVectorizer(norm, mcc);
-var queries = new byte[n][];
+var queries = new ushort[n][];
 float[] fbuf = new float[Quantizer.Dim];
 float[] fbuf2 = new float[Quantizer.Dim];
 int mismatches = 0;
+ushort[] q2 = new ushort[Quantizer.Dim];
 for (int i = 0; i < n; i++)
 {
     vec.Compute(requests[i], fbuf);
-    var q = new byte[Quantizer.Dim];
+    var q = new ushort[Quantizer.Dim];
     Quantizer.Encode(fbuf, q);
     queries[i] = q;
 
     fast.TryCompute(rawJson[i], fbuf2);
-    Span<byte> q2 = stackalloc byte[Quantizer.Dim];
     Quantizer.Encode(fbuf2, q2);
-    if (!q2.SequenceEqual(q)) mismatches++;
+    if (!q2.AsSpan().SequenceEqual(q)) mismatches++;
 }
 Console.WriteLine($"[{sw.Elapsed}] FastVectorizer vs Vectorizer quantized mismatches: {mismatches} / {n}");
 

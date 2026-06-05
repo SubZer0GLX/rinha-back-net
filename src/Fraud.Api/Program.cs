@@ -54,11 +54,11 @@ void WarmUp()
     Parallel.For(0, Environment.ProcessorCount, _ =>
     {
         var s = searcherLocal.Value!;
-        Span<byte> q = stackalloc byte[Quantizer.Dim];
+        Span<ushort> q = stackalloc ushort[Quantizer.Dim];
         float sink = 0f;
         for (int n = 0; n < 4000; n++)
         {
-            for (int d = 0; d < Quantizer.Dim; d++) q[d] = (byte)rng.Next(256);
+            for (int d = 0; d < Quantizer.Dim; d++) q[d] = (ushort)rng.Next(65536);
             sink += s.Score(q, nprobe);
         }
         GC.KeepAlive(sink);
@@ -105,7 +105,7 @@ app.MapPost("/fraud-score", async (HttpContext ctx) =>
         try
         {
             Span<float> f = stackalloc float[Quantizer.Dim];
-            Span<byte> q = stackalloc byte[Quantizer.Dim];
+            Span<ushort> q = stackalloc ushort[Quantizer.Dim];
             vectorizer.TryCompute(buf.AsSpan(0, total), f);
             Quantizer.Encode(f, q);
             float score = searcherLocal.Value!.Score(q, nprobe);

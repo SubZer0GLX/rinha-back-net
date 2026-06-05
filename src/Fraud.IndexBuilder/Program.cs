@@ -50,7 +50,7 @@ int[] listOffsets = new int[nlist + 1];
 foreach (int a in assign) listOffsets[a + 1]++;
 for (int i = 0; i < nlist; i++) listOffsets[i + 1] += listOffsets[i];
 
-byte[] reordered = new byte[(long)count * Dim];
+ushort[] reordered = new ushort[(long)count * Dim];
 byte[] labelBits = new byte[(count + 7) / 8];
 int[] cursor = (int[])listOffsets.Clone();
 for (int i = 0; i < count; i++)
@@ -62,12 +62,9 @@ for (int i = 0; i < count; i++)
 }
 
 // ---- 5. quantize centroids and write ----
-byte[] centroidsB = new byte[nlist * Dim];
+ushort[] centroidsB = new ushort[nlist * Dim];
 for (int i = 0; i < nlist * Dim; i++)
-{
-    float t = centroidsF[i];
-    centroidsB[i] = (byte)Math.Clamp((int)MathF.Round(t), 0, 255);
-}
+    centroidsB[i] = (ushort)Math.Clamp((int)MathF.Round(centroidsF[i]), 0, Quantizer.MaxLevel);
 
 Console.WriteLine($"[{sw.Elapsed}] writing {outPath} ...");
 using (var fs = File.Create(outPath))
@@ -95,11 +92,11 @@ static byte[] DecompressAll(string path)
 
 // Parses an array of { "vector":[14 floats], "label":"fraud"|"legit" }.
 // Centroid coords are stored already quantized (bytes) to keep memory at ~42MB.
-static (byte[] vectors, byte[] fraudBits, int count) ParseReferences(byte[] utf8, int dim)
+static (ushort[] vectors, byte[] fraudBits, int count) ParseReferences(byte[] utf8, int dim)
 {
     // first pass would be needed to size exactly; instead grow geometrically
     int cap = 4_000_000;
-    byte[] vectors = new byte[(long)cap * dim];
+    ushort[] vectors = new ushort[(long)cap * dim];
     byte[] fraudBits = new byte[(cap + 7) / 8];
     int count = 0;
 

@@ -6,7 +6,7 @@ namespace Fraud.IndexBuilder;
 /// <summary>Plain Lloyd k-means used to build the IVF coarse quantizer.</summary>
 internal static class KMeans
 {
-    public static float[] Train(byte[] vectors, int count, int dim, int nlist,
+    public static float[] Train(ushort[] vectors, int count, int dim, int nlist,
                                 int trainSample, int iters, Stopwatch sw)
     {
         int sample = Math.Min(trainSample, count);
@@ -70,7 +70,7 @@ internal static class KMeans
         return cent;
     }
 
-    public static void AssignAll(byte[] vectors, int count, int dim,
+    public static void AssignAll(ushort[] vectors, int count, int dim,
                                  float[] cent, int nlist, int[] assign)
     {
         Parallel.For(0, count, i =>
@@ -80,7 +80,7 @@ internal static class KMeans
         });
     }
 
-    private static int NearestFloat(byte[] vectors, long off, float[] cent, int nlist, int dim)
+    private static int NearestFloat(ushort[] vectors, long off, float[] cent, int nlist, int dim)
     {
         int best = 0;
         float bestD = float.MaxValue;
