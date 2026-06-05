@@ -27,7 +27,7 @@ services:
     environment:
       - NPROBE=12
       - PORT=8080
-      - DOTNET_GCHeapHardLimitPercent=70
+      - DOTNET_GCHeapHardLimitPercent=80
     networks:
       - app
     deploy:
@@ -41,7 +41,7 @@ services:
     environment:
       - NPROBE=12
       - PORT=8080
-      - DOTNET_GCHeapHardLimitPercent=70
+      - DOTNET_GCHeapHardLimitPercent=80
     networks:
       - app
     deploy:
