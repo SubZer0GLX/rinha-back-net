@@ -1,0 +1,5 @@
+bin/
+obj/
+data/index.bin
+data/references.json.gz
+*.user

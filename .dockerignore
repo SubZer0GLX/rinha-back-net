@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+data/index.bin
+*.md
+.git
+.gitignore
+docker-compose*.yml
+nginx.conf
